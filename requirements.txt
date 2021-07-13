@@ -1,0 +1,10 @@
+-e ./uro_utilities
+numpy
+pandas
+matplotlib
+scipy
+roman
+traits
+traitsui
+traits_futures
+PySide2
