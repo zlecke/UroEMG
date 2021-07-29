@@ -1,4 +1,4 @@
 [submodule "uro_utilities"]
 	path = uro_utilities
-	url = https://github.com/zlecke/uro_utilities.git
+	url = git@github.com:zlecke/uro_utilities.git
 	branch = uro_emg
