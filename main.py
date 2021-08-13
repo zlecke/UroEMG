@@ -57,6 +57,8 @@ class UroEMG(HasTraits):
 
     progress = Int(0)
     prog_message = Str()
+    last_cur_step = Int(0)
+    last_max_steps = Int(0)
 
     out_plots = Instance(UroEventEMGPlots)
 
@@ -134,9 +136,17 @@ class UroEMG(HasTraits):
 
     @observe('future:progress')
     def _report_progress(self, progress_info):
-        cur_step, max_steps, msg = progress_info.new
-        self.progress = int((cur_step / max_steps) * 100)
-        self.prog_message = msg
+        if len(progress_info.new) == 3:
+            cur_step, max_steps, msg = progress_info.new
+            self.progress = int((cur_step / max_steps) * 100)
+            self.prog_message = msg
+            self.last_cur_step = cur_step
+            self.last_max_steps = max_steps
+        elif len(progress_info.new) == 2:
+            frac, sub_message = progress_info.new
+            tmp = frac * (1/self.last_max_steps) * 100
+            self.progress = int(((self.last_cur_step/self.last_max_steps) * 100) + tmp)
+            self.prog_message = " - ".join([self.prog_message.split(' - ')[0], sub_message])
 
     @observe('future:done')
     def _report_result(self, event):
