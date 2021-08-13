@@ -20,9 +20,8 @@ def analyze_emg(progress, study_list):
     output = {}
     for i, study_path in enumerate(study_list.studies):
         study_letter = os.path.basename(study_path)[
-                       os.path.basename(study_path).find(str(study_list.part_id)) + 3:os.path.basename(
-                           study_path).find(
-                               str(study_list.part_id)) + 7]
+                       os.path.basename(study_path).find(str(study_list.part_id)) + 3:
+                       os.path.basename(study_path).find(str(study_list.part_id)) + 7]
         progress((i, len(study_list.studies), 'Analyzing {}'.format(study_letter)))
         p_n = void_time_wavelet(study_path, study_list.part_id)
         output = {**output, **p_n}
@@ -86,7 +85,8 @@ class UroEMG(HasTraits):
         )
 
         choose_studies_group = Group(
-                Item('study_list', editor=InstanceEditor(), style='custom', show_label=False),
+                Item('study_list', editor=InstanceEditor(), style='custom', show_label=False,
+                     height=200),
                 Item('_', show_label=False),
                 Group(Item('375'),
                       Item('submit_analyze_emg', show_label=False, width=25),
