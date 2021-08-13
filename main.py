@@ -17,15 +17,24 @@ from uro_utilities.emg import UroEventEMGPlots
 
 
 def analyze_emg(progress, study_list):
-    output = {}
+    output_p_n = {}
+    output_cf = {}
+    output_tres = {}
+    output_bw = {}
+
     for i, study_path in enumerate(study_list.studies):
         study_letter = os.path.basename(study_path)[
                        os.path.basename(study_path).find(str(study_list.part_id)) + 3:
                        os.path.basename(study_path).find(str(study_list.part_id)) + 7]
         progress((i, len(study_list.studies), 'Analyzing {}'.format(study_letter)))
-        p_n = void_time_wavelet(study_path, study_list.part_id)
-        output = {**output, **p_n}
-    return output
+        p_n, center_freqs, time_res, bandwidths = void_time_wavelet(study_path,
+                                                                    study_list.part_id,
+                                                                    progress=progress)
+        output_p_n = {**output_p_n, **p_n}
+        output_cf = {**output_cf, **center_freqs}
+        output_tres = {**output_tres, **time_res}
+        output_bw = {**output_bw, **bandwidths}
+    return output_p_n, output_cf, output_tres, output_bw
 
 
 class UroEMG(HasTraits):
