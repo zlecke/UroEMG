@@ -126,8 +126,8 @@ class UroEMG(HasTraits):
     def _submit_find_studies_fired(self):
         if not self.participant_selected:
             part_dir = self.part_dir
-            self.study_list.part_id = int(os.path.basename(part_dir)[:3])
-            self.study_list.find_studies(part_dir, True, False)
+            self.study_list.part_id = os.path.basename(part_dir)[:3]
+            self.study_list.find_studies(part_dir, True, True)
             self.participant_selected = True
 
     def _submit_analyze_emg_fired(self):
