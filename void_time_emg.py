@@ -10,6 +10,10 @@ from uro_utilities.wavelets import calculate_wavelets, calculate_wavelet_spectru
 
 
 def void_time_wavelet(study_path, participant_id=None, progress=None):
+    if progress:
+        fraction_complete = 0
+        progress((fraction_complete, 'Finding Data Files'))
+
     if participant_id is None:
         participant_id = int(os.path.basename(os.path.dirname(study_path))[:3])
 
@@ -22,8 +26,7 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
     time_res = {study_letter: {}}
     bandwidths = {study_letter: {}}
 
-    f_files = {'uro': {}, 'lab': {}}
-    found_files = {'uro': [], 'lab': []}
+    f_files = {'uro': {}, 'lab': {}, 'comments': {}}
 
     for root, dirs, files in os.walk(study_path):
         for f in files:
@@ -36,36 +39,22 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
             if f.endswith('data.txt') and 'Tracking Files' in root and 'Data Acquisition' in root:
                 f_files['uro'][parse_cmg(os.path.join(root, f))] = os.path.join(root, f)
 
-    for f in found_files['uro']:
-        if f.upper().find('CMG') > -1:
-            ci = f.upper().find('CMG')
-            if f[ci + 3:f[ci:].upper().find('_') + ci].strip().isdigit():
-                cmg = 'CMG{:d}'.format(int(f[ci + 3:f[ci:].upper().find('_') + ci].strip()))
-            else:
-                cmg = 'CMG{}'.format(
-                    roman.fromRoman(f[ci + 3:f[ci:].upper().find('_') + ci].strip()))
-        else:
-            cmg = 'CMG1'
-        f_files['uro'][cmg] = f
+            if f.endswith('_comments.txt') and ('pre-processing' == os.path.basename(root).lower()
+                                                or
+                                                'pre processing' == os.path.basename(root).lower()):
+                f_files['comments'][parse_cmg(os.path.join(root, f))] = os.path.join(root, f)
 
-    for f in found_files['lab']:
-        if f.upper().find('CMG') > -1:
-            ci = f.upper().find('CMG')
-            if f[ci + 3:f[ci:].upper().find('.') + ci].strip().isdigit():
-                cmg = 'CMG{:d}'.format(int(f[ci + 3:f[ci:].upper().find('.') + ci].strip()))
-            else:
-                cmg = 'CMG{}'.format(
-                        roman.fromRoman(f[ci + 3:f[ci:].upper().find('.') + ci].strip()))
-        else:
-            cmg = 'CMG1'
-        f_files['lab'][cmg] = f
-
-    for cmg in sorted(f_files['uro'].keys()):
+    for i, cmg in enumerate(sorted(f_files['uro'].keys())):
         if cmg not in f_files['lab'].keys():
             continue
 
         uro_name = f_files['uro'][cmg]
         lab_name = f_files['lab'][cmg]
+        com_name = f_files['comments'].get(cmg, '')
+
+        if progress:
+            fraction_complete = (1./4.) * ((i + 1)/len(f_files['uro'].keys()))
+            progress((fraction_complete, "Reading Data - {}".format(cmg)))
 
         lab_df = uro_utilities.read_uro_laborie(lab_name,
                                                 columns=['EMGR2_A',
@@ -76,44 +65,60 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
                                                          'VH2O'],
                                                 round=4).set_index('Time')
 
+        void_times = find_void_times(com_name)
+
         uro_df = pd.read_csv(uro_name, delimiter='\t')
+
+        if progress:
+            fraction_complete = (1./2.) * ((i + 1)/len(f_files['uro'].keys()))
+            progress((fraction_complete, "Finding Void Times - {}".format(cmg)))
 
         cough_time = uro_utilities.get_cough_time(uro_name)
 
-        void_1_time = np.nan if not uro_df.query('`Void Attemp 1` > 0').shape[0] > 0\
-            else int(
-                np.rint(uro_df.query('`Void Attemp 1` > 0').loc[:, 'Time(Sec)'].iloc[
-                            0])) - cough_time
+        if len(void_times) == 0:
 
-        void_2_time = np.nan if not uro_df.query('`Void Attemp 2` > 0').shape[0] > 0\
-            else int(
-                np.rint(uro_df.query('`Void Attemp 2` > 0').loc[:, 'Time(Sec)'].iloc[
-                            0])) - cough_time
+            void_1_time = np.nan if not uro_df.query('`Void Attemp 1` > 0').shape[0] > 0\
+                else int(
+                    np.rint(uro_df.query('`Void Attemp 1` > 0').loc[:, 'Time(Sec)'].iloc[
+                                0])) - cough_time
 
-        void_3_time = np.nan if not uro_df.query('`Void Attemp 3` > 0').shape[0] > 0\
-            else int(
-                np.rint(uro_df.query('`Void Attemp 3` > 0').loc[:, 'Time(Sec)'].iloc[
-                            0])) - cough_time
+            void_2_time = np.nan if not uro_df.query('`Void Attemp 2` > 0').shape[0] > 0\
+                else int(
+                    np.rint(uro_df.query('`Void Attemp 2` > 0').loc[:, 'Time(Sec)'].iloc[
+                                0])) - cough_time
 
-        void_times = []
-        if not np.isnan(void_1_time):
-            void_times.append(void_1_time)
-        if not np.isnan(void_2_time):
-            void_times.append(void_2_time)
-        if not np.isnan(void_3_time):
-            void_times.append(void_3_time)
+            void_3_time = np.nan if not uro_df.query('`Void Attemp 3` > 0').shape[0] > 0\
+                else int(
+                    np.rint(uro_df.query('`Void Attemp 3` > 0').loc[:, 'Time(Sec)'].iloc[
+                                0])) - cough_time
+
+            void_times = []
+            if not np.isnan(void_1_time):
+                void_times.append(void_1_time)
+            if not np.isnan(void_2_time):
+                void_times.append(void_2_time)
+            if not np.isnan(void_3_time):
+                void_times.append(void_3_time)
 
         # lab_df = lab_df.reset_index().rename(columns={'index': 'Time'})
         # lab_df.loc[:, 'Time'] = lab_df.loc[:, 'Time'].apply(pd.to_timedelta, unit='sec')
-
-        void_emg = [lab_df.query('Time > @vtime - 5 and Time < @vtime + 5').loc[:, 'EMGR2_A'] for
-                    vtime in void_times]
+        try:
+            void_emg = [lab_df.query('Time > @vtime - 5 and Time < @vtime + 5').loc[:, 'EMGR2_A']
+                        for vtime in void_times]
+        except KeyError:
+            void_emg = [lab_df.query('Time > @vtime - 5 and Time < @vtime + 5').loc[:, 'EMG2_A']
+                        for vtime in void_times]
+        void_emg = [x for x in void_emg if x.shape[0] > 0]
         void_p_n[study_letter][cmg] = []
         center_freqs[study_letter][cmg] = []
         time_res[study_letter][cmg] = []
         bandwidths[study_letter][cmg] = []
         for j, vemg in enumerate(void_emg):
-
+            if progress:
+                fraction_complete = (1./2.) * ((i + 1)/len(f_files['uro'].keys())) \
+                                    + (1./4.) * ((j + 1)/len(void_emg))
+                progress((fraction_complete,
+                          "Analyzing EMG - {} - Void Attempt {}".format(cmg, j + 1)))
             F_psi, cf, tres, bandwidth = calculate_wavelets(vemg.shape[0],
                                                             sampling_rate=1 / lab_df.index.values[
                                                                 1])
