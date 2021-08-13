@@ -12,7 +12,8 @@ from traitsui.api import Item, Group, View, DirectoryEditor, InstanceEditor
 
 from uro_utilities.study_list import StudyList
 from uro_utilities.threading import QProgressEditor
-from void_time_emg import void_time_wavelet, VoidTimeEMGPlots
+from void_time_emg import void_time_wavelet
+from uro_utilities.emg import UroEventEMGPlots
 
 
 def analyze_emg(progress, study_list):
@@ -49,7 +50,7 @@ class UroEMG(HasTraits):
     progress = Int(0)
     prog_message = Str()
 
-    out_plots = Instance(VoidTimeEMGPlots)
+    out_plots = Instance(UroEventEMGPlots)
 
     finished = Bool(False)
 
@@ -133,7 +134,7 @@ class UroEMG(HasTraits):
         if self.future.state == FAILED:
             print(self.future.exception[2])
         else:
-            self.out_plots = VoidTimeEMGPlots(self.future.result)
+            self.out_plots = UroEventEMGPlots(*self.future.result)
             self.out_plots.create_plots()
             self.out_plots.edit_traits()
             self.finished = True
