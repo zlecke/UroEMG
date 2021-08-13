@@ -3,124 +3,10 @@
 import numpy as np
 import pandas as pd
 import os
-import roman
 import uro_utilities
-from matplotlib import cm
-from matplotlib.colors import Normalize
-from matplotlib.figure import Figure
+from uro_utilities import parse_cmg, find_void_times
 
-from uro_utilities.mpl_figure_editor import MPLFigureEditor
-from wavelets import calculate_wavelets, calculate_wavelet_spectrum
-
-from traits.api import HasTraits, Dict, Instance
-from traitsui.api import Group, Item, View, Action, Menu, MenuBar, CloseAction
-
-from pyface.api import DirectoryDialog, OK
-
-
-def fix_shape(table, resample_rate):
-    for i, v in enumerate(table):
-        if table[i].shape[1] != int(resample_rate[:-2]):
-            table[i] = table[i][:, :-1]
-    return table
-
-
-class DContainer(HasTraits):
-    """
-    A :py:class:`traits.has_traits.HasTraits` wrapper class for dict instances.
-    """
-    value = Dict
-
-    def __getattr__(self, key):
-        if key in self.value:
-            return self.value[key]
-
-    def __setattr__(self, key, value):
-        if key in self.value:
-            self.value[key] = value
-        else:
-            super().__setattr__(key, value)
-
-
-class VoidTimeEMGPlots(HasTraits):
-    void_p_n = Dict
-    dict_wrapper = Instance(DContainer)
-
-    def __init__(self, void_p_n, **traits):
-        self.void_p_n = void_p_n
-        self.dict_wrapper = DContainer()
-        self.dict_wrapper.value = {study_letter: DContainer() for study_letter in void_p_n.keys()}
-        for study_letter in void_p_n.keys():
-            self.dict_wrapper.value[study_letter].value = {cmg: Figure()
-                                                           for cmg in void_p_n[study_letter].keys()}
-        super().__init__(**traits)
-
-    def create_plots(self):
-        for study_letter in self.void_p_n.keys():
-            for cmg in self.void_p_n[study_letter].keys():
-                if len(self.void_p_n[study_letter][cmg]) == 0:
-                    continue
-                fig = self.dict_wrapper.value[study_letter].value[cmg]
-                fig.supxlabel('Time')
-                fig.supylabel('Wavelet Index')
-                vmin = np.min([vemg.min() for vemg in self.void_p_n[study_letter][cmg]])
-                vmax = np.max([vemg.max() for vemg in self.void_p_n[study_letter][cmg]])
-                norm = Normalize(vmin=vmin, vmax=vmax)
-                for i, vemg in enumerate(self.void_p_n[study_letter][cmg]):
-                    ax = fig.add_subplot(1, len(self.void_p_n[study_letter][cmg]), i + 1)
-                    emg_data = vemg.resample('100ms').mean().values.T
-                    ax.pcolormesh(
-                            vemg.resample('100ms').mean().index.values/pd.to_timedelta(1, 's'),
-                            np.arange(emg_data.shape[0]),
-                            emg_data,
-                            shading='gouraud',
-                            norm=norm
-                    )
-                    ax.set_title('Void Attempt {}'.format(i + 1))
-                    # ax.set_yticks(np.arange(0.5, emg_data.shape[0] - 0.5))
-                    # ax.set_yticklabels(np.arange(emg_data.shape[0] - 1))
-                if vmin == vmax:
-                    continue
-                fig.colorbar(cm.ScalarMappable(norm=norm, cmap='viridis'), ax=fig.axes)
-                fig.suptitle('EMG Analysis Near Void Attempts - {} {}'.format(study_letter, cmg))
-
-    def save_all(self):
-        dialog = DirectoryDialog()
-        if dialog.open() == OK:
-            for study_letter in self.void_p_n.keys():
-                for cmg in self.void_p_n[study_letter].keys():
-                    if len(self.void_p_n[study_letter][cmg]) == 0:
-                        continue
-                    self.dict_wrapper.value[study_letter].value[cmg].savefig(
-                            os.path.join(dialog.path, '_'.join([study_letter, cmg])),
-                            bbox_inches='tight')
-
-    def default_traits_view(self):
-        menubar = MenuBar(
-                Menu(
-                        Action(name='&Save All', action='save_all'),
-                        CloseAction,
-                        name='&File'
-                )
-        )
-        items = Group(
-                *[Group(
-                        *[Group(
-                                *[Item('object.dict_wrapper.{}.{}'.format(study_letter, cmg),
-                                       label=cmg,
-                                       editor=MPLFigureEditor(),
-                                       show_label=False),
-                                  ],
-                                label='{}'.format(cmg)
-                        ) for cmg in self.dict_wrapper.value[study_letter].value.keys()
-                                if len(self.void_p_n[study_letter][cmg]) > 0
-                        ],
-                        label='{}'.format(study_letter),
-                        layout='tabbed'
-                ) for study_letter in self.dict_wrapper.value.keys()
-                ], layout='tabbed'
-        )
-        return View(items, menubar=menubar, kind='modal', title='EMG Analysis at Void Attempts')
+from uro_utilities.wavelets import calculate_wavelets, calculate_wavelet_spectrum
 
 
 def void_time_wavelet(study_path, participant_id=None, progress=None):
@@ -138,11 +24,14 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
 
     for root, dirs, files in os.walk(study_path):
         for f in files:
-            if f.endswith(
-                    '.txt') and 'Data Acquisition' in root and 'Laborie' in root and study_letter in f:
-                found_files['lab'].append(os.path.join(root, f))
+            if f.endswith('.txt') \
+                    and 'Data Acquisition' in root \
+                    and 'Laborie' in root \
+                    and study_letter in f:
+                f_files['lab'][parse_cmg(os.path.join(root, f))] = os.path.join(root, f)
+
             if f.endswith('data.txt') and 'Tracking Files' in root and 'Data Acquisition' in root:
-                found_files['uro'].append(os.path.join(root, f))
+                f_files['uro'][parse_cmg(os.path.join(root, f))] = os.path.join(root, f)
 
     for f in found_files['uro']:
         if f.upper().find('CMG') > -1:
