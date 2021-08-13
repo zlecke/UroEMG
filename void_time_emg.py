@@ -18,6 +18,9 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
                    os.path.basename(study_path).find(str(participant_id)) + 7]
 
     void_p_n = {study_letter: {}}
+    center_freqs = {study_letter: {}}
+    time_res = {study_letter: {}}
+    bandwidths = {study_letter: {}}
 
     f_files = {'uro': {}, 'lab': {}}
     found_files = {'uro': [], 'lab': []}
@@ -106,19 +109,24 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
         void_emg = [lab_df.query('Time > @vtime - 5 and Time < @vtime + 5').loc[:, 'EMGR2_A'] for
                     vtime in void_times]
         void_p_n[study_letter][cmg] = []
-        for vemg in void_emg:
+        center_freqs[study_letter][cmg] = []
+        time_res[study_letter][cmg] = []
+        bandwidths[study_letter][cmg] = []
+        for j, vemg in enumerate(void_emg):
+
             F_psi, cf, tres, bandwidth = calculate_wavelets(vemg.shape[0],
                                                             sampling_rate=1 / lab_df.index.values[
                                                                 1])
-            freqs = np.linspace(0, 500, vemg.shape[0])
             void_p_n[study_letter][cmg].append(pd.DataFrame(data=calculate_wavelet_spectrum(
                     vemg.values.ravel(),
                     F_psi,
                     len(F_psi[0, :]),
-                    freqs,
                     cf,
                     tres),
                     index=vemg.index.to_series().apply(pd.to_timedelta, unit='sec'),
                     dtype=np.float64))
+            center_freqs[study_letter][cmg].append(cf)
+            time_res[study_letter][cmg].append(tres)
+            bandwidths[study_letter][cmg].append(bandwidth)
 
-    return void_p_n
+    return void_p_n, center_freqs, time_res, bandwidths
