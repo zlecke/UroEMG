@@ -59,12 +59,7 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
             progress((fraction_complete, "Reading Data - {}".format(cmg)))
 
         lab_df = uro_utilities.read_uro_laborie(lab_name,
-                                                columns=['EMGR2_A',
-                                                         'Pabd',
-                                                         'Pves',
-                                                         'Pdet',
-                                                         'Inf Vol',
-                                                         'VH2O'],
+                                                columns=['EMGR2_A'],
                                                 round=4).set_index('Time')
 
         void_times = find_void_times(com_name)
@@ -102,8 +97,6 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
             if not np.isnan(void_3_time):
                 void_times.append(void_3_time)
 
-        # lab_df = lab_df.reset_index().rename(columns={'index': 'Time'})
-        # lab_df.loc[:, 'Time'] = lab_df.loc[:, 'Time'].apply(pd.to_timedelta, unit='sec')
         try:
             void_emg = [lab_df.query('Time > @vtime - 5 and Time < @vtime + 5').loc[:, 'EMGR2_A']
                         for vtime in void_times]
