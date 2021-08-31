@@ -36,7 +36,9 @@ def void_time_wavelet(study_path, participant_id=None, progress=None):
                     and study_letter in f:
                 f_files['lab'][parse_cmg(os.path.join(root, f))] = os.path.join(root, f)
 
-            if f.endswith('data.txt') and 'Tracking Files' in root and 'Data Acquisition' in root:
+            if (f.endswith('data.txt')
+                    and ('Tracking Files' in root or 'Tracking Notes' in root)
+                    and 'Data Acquisition' in root):
                 f_files['uro'][parse_cmg(os.path.join(root, f))] = os.path.join(root, f)
 
             if f.endswith('_comments.txt') and ('pre-processing' == os.path.basename(root).lower()
