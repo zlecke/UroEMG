@@ -158,6 +158,11 @@ class UroEMG(HasTraits):
             self.out_plots.edit_traits()
             self.finished = True
 
+    @observe('finished', post_init=True)
+    def restart(self, event):
+        if event.new:
+            self.reset_traits()
+
 
 if __name__ == '__main__':
     app = UroEMG()
